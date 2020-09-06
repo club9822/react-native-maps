@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.drawable.Animatable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.animation.ObjectAnimator;
@@ -24,10 +25,12 @@ import com.facebook.drawee.generic.GenericDraweeHierarchy;
 import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
 import com.facebook.drawee.interfaces.DraweeController;
 import com.facebook.drawee.view.DraweeHolder;
+import com.facebook.imagepipeline.common.ResizeOptions;
 import com.facebook.imagepipeline.core.ImagePipeline;
 import com.facebook.imagepipeline.image.CloseableImage;
 import com.facebook.imagepipeline.image.CloseableStaticBitmap;
 import com.facebook.imagepipeline.image.ImageInfo;
+import com.facebook.imagepipeline.request.BasePostprocessor;
 import com.facebook.imagepipeline.request.ImageRequest;
 import com.facebook.imagepipeline.request.ImageRequestBuilder;
 import com.facebook.react.bridge.ReadableMap;
@@ -41,7 +44,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import javax.annotation.Nullable;
 
 public class AirMapMarker extends AirMapFeature {
-
+  public AirMapTags mAirMapTags = new AirMapTags();
   private MarkerOptions markerOptions;
   private Marker marker;
   private int width;
@@ -61,6 +64,7 @@ public class AirMapMarker extends AirMapFeature {
   private final Context context;
 
   private float markerHue = 0.0f; // should be between 0 and 360
+//  private float markerHue = 0.0f; // should be between 0 and 360
   private BitmapDescriptor iconBitmapDescriptor;
   private Bitmap iconBitmap;
 
@@ -69,6 +73,8 @@ public class AirMapMarker extends AirMapFeature {
   private boolean draggable = false;
   private int zIndex = 0;
   private float opacity = 1.0f;
+
+  private boolean greyMarker;
 
   private float calloutAnchorX;
   private float calloutAnchorY;
@@ -81,7 +87,7 @@ public class AirMapMarker extends AirMapFeature {
   private boolean hasCustomMarkerView = false;
   private final AirMapMarkerManager markerManager;
   private String imageUri;
-
+  private FastGreyScalePostprocessor mFastGreyScalePostprocessor = new FastGreyScalePostprocessor();
   private final DraweeHolder<?> logoHolder;
   private DataSource<CloseableReference<CloseableImage>> dataSource;
   private final ControllerListener<ImageInfo> mLogoControllerListener =
@@ -101,6 +107,9 @@ public class AirMapMarker extends AirMapFeature {
                 Bitmap bitmap = closeableStaticBitmap.getUnderlyingBitmap();
                 if (bitmap != null) {
                   bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+                  if(getGreyMarker()==true){
+                   mFastGreyScalePostprocessor.process(bitmap);
+                  }
                   iconBitmap = bitmap;
                   iconBitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap);
                 }
@@ -119,7 +128,9 @@ public class AirMapMarker extends AirMapFeature {
           update(true);
         }
       };
-
+  public AirMapTags getAirMapTags(){
+    return this.mAirMapTags;
+  }
   public AirMapMarker(Context context, AirMapMarkerManager markerManager) {
     super(context);
     this.context = context;
@@ -132,19 +143,30 @@ public class AirMapMarker extends AirMapFeature {
     super(context);
     this.context = context;
     this.markerManager = markerManager;
+//    this.greyMarker = markerManager.setGreyMarker(markerManager,);
     logoHolder = DraweeHolder.create(createDraweeHierarchy(), context);
     logoHolder.onAttach();
-
     position = options.getPosition();
     setAnchor(options.getAnchorU(), options.getAnchorV());
     setCalloutAnchor(options.getInfoWindowAnchorU(), options.getInfoWindowAnchorV());
     setTitle(options.getTitle());
     setSnippet(options.getSnippet());
     setRotation(options.getRotation());
+//    Object mObj= {}
+//    this.marker.setTag(mObj);
+//    setGreyMarker(options.getGreyMarker());
+//    setGreyMarker(markerManager.)
+    AirMapTags mAirMapTags = (AirMapTags) marker.getTag();
+    if(mAirMapTags!=null) {
+      setGreyMarker(mAirMapTags.getGreyMarketer());
+    }
+    System.out.println("log::::AirMapTags"+mAirMapTags);
+    System.out.println("log::::AirMapTags"+mAirMapTags.getGreyMarketer());
     setFlat(options.isFlat());
     setDraggable(options.isDraggable());
     setZIndex(Math.round(options.getZIndex()));
     setAlpha(options.getAlpha());
+    setMarkerHue(this.markerHue);
     iconBitmapDescriptor = options.getIcon();
   }
 
@@ -195,7 +217,16 @@ public class AirMapMarker extends AirMapFeature {
     }
     update(false);
   }
-
+  public void setGreyMarker(boolean greyMarker){
+    this.greyMarker=greyMarker;
+    if(marker != null){
+//      marker.setGreyMarker(greyMarker);
+    }
+    update(false);
+  }
+  public boolean getGreyMarker(){
+    return this.greyMarker;
+  }
   public void setFlat(boolean flat) {
     this.flat = flat;
     if (marker != null) {
@@ -354,8 +385,10 @@ public class AirMapMarker extends AirMapFeature {
       update(true);
     } else if (uri.startsWith("http://") || uri.startsWith("https://") ||
         uri.startsWith("file://") || uri.startsWith("asset://") || uri.startsWith("data:")) {
+      System.out.println("log:::ImageRequest:"+uri);
       ImageRequest imageRequest = ImageRequestBuilder
           .newBuilderWithSource(Uri.parse(uri))
+          .setResizeOptions(new ResizeOptions(86, 86))
           .build();
 
       ImagePipeline imagePipeline = Fresco.getImagePipeline();
@@ -367,6 +400,7 @@ public class AirMapMarker extends AirMapFeature {
           .build();
       logoHolder.setController(controller);
     } else {
+      System.out.println("log:::iconBitmapDescriptor:"+uri);
       iconBitmapDescriptor = getBitmapDescriptorByName(uri);
       if (iconBitmapDescriptor != null) {
           int drawableId = getDrawableResourceByName(uri);
@@ -375,6 +409,7 @@ public class AirMapMarker extends AirMapFeature {
               Drawable drawable = getResources().getDrawable(drawableId);
               iconBitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
               drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
+//              mFastGreyScalePostprocessor.process(iconBitmap);
               Canvas canvas = new Canvas(iconBitmap);
               drawable.draw(canvas);
           }
@@ -387,6 +422,7 @@ public class AirMapMarker extends AirMapFeature {
   }
 
   public void setIconBitmapDescriptor(BitmapDescriptor bitmapDescriptor, Bitmap bitmap) {
+//    mFastGreyScalePostprocessor.process(bitmap);
     this.iconBitmapDescriptor = bitmapDescriptor;
     this.iconBitmap = bitmap;
     this.hasViewChanges = true;
@@ -394,6 +430,7 @@ public class AirMapMarker extends AirMapFeature {
   }
 
   public void setIconBitmap(Bitmap bitmap) {
+//    mFastGreyScalePostprocessor.process(bitmap);
     this.iconBitmap = bitmap;
   }
 
@@ -454,22 +491,29 @@ public class AirMapMarker extends AirMapFeature {
   }
 
   private BitmapDescriptor getIcon() {
+
     if (hasCustomMarkerView) {
       // creating a bitmap from an arbitrary view
       if (iconBitmapDescriptor != null) {
+        System.out.println("log:::::iconBitmapDescriptor != nul");
         Bitmap viewBitmap = createDrawable();
-        int width = Math.max(iconBitmap.getWidth(), viewBitmap.getWidth());
-        int height = Math.max(iconBitmap.getHeight(), viewBitmap.getHeight());
+//        int width = Math.max(iconBitmap.getWidth(), viewBitmap.getWidth());
+        int width = 32;
+//        int height = Math.max(iconBitmap.getHeight(), viewBitmap.getHeight());
+        int height = 32;
         Bitmap combinedBitmap = Bitmap.createBitmap(width, height, iconBitmap.getConfig());
         Canvas canvas = new Canvas(combinedBitmap);
         canvas.drawBitmap(iconBitmap, 0, 0, null);
         canvas.drawBitmap(viewBitmap, 0, 0, null);
         return BitmapDescriptorFactory.fromBitmap(combinedBitmap);
       } else {
+        System.out.println("log:::::BitmapDescriptorFactory.fromBitmap(createDrawable());");
         return BitmapDescriptorFactory.fromBitmap(createDrawable());
       }
     } else if (iconBitmapDescriptor != null) {
+      System.out.println("log:::::iconBitmapDescriptoriconBitmapDescriptoriconBitmapDescriptor");
       // use local image as a marker
+
       return iconBitmapDescriptor;
     } else {
       // render the default marker pin
@@ -533,11 +577,12 @@ public class AirMapMarker extends AirMapFeature {
 
     // Do not create the doublebuffer-bitmap each time. reuse it to save memory.
     Bitmap bitmap = mLastBitmapCreated;
-
+    System.out.println("log::::::bitmap"+bitmap);
     if (bitmap == null ||
             bitmap.isRecycled() ||
             bitmap.getWidth() != width ||
             bitmap.getHeight() != height) {
+
       bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
       mLastBitmapCreated = bitmap;
     } else {

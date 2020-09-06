@@ -221,6 +221,13 @@ public class AirMapMarkerManager extends ViewGroupManager<AirMapMarker> {
 //    public void setImage(AirMapMarker view, ReadableMap image) {
 //        view.setImage(image);
 //    }
+  @ReactProp(name = "greyMarker", defaultBoolean = false)
+  public void setGreyMarker(AirMapMarker view, boolean greyMarker){
+//    super.setGreyMarker(greyMarker);
+//    view.setGreyMarker(greyMarker);
+//    view.getAirMapTags().setGreyMarker(greyMarker);
+//    view.setTag(Integer.parseInt("greyMarker"),view.getAirMapTags());
+  }
 
   @ReactProp(name = "icon")
   public void setIcon(AirMapMarker view, @Nullable String source) {

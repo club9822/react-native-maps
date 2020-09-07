@@ -44,7 +44,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import javax.annotation.Nullable;
 
 public class AirMapMarker extends AirMapFeature {
-  public AirMapTags mAirMapTags = new AirMapTags();
+//  public AirMapTags f = new AirMapTags();
   private MarkerOptions markerOptions;
   private Marker marker;
   private int width;
@@ -128,9 +128,9 @@ public class AirMapMarker extends AirMapFeature {
           update(true);
         }
       };
-  public AirMapTags getAirMapTags(){
-    return this.mAirMapTags;
-  }
+//  public AirMapTags getAirMapTags(){
+//    return this.mAirMapTags;
+//  }
   public AirMapMarker(Context context, AirMapMarkerManager markerManager) {
     super(context);
     this.context = context;
@@ -156,12 +156,12 @@ public class AirMapMarker extends AirMapFeature {
 //    this.marker.setTag(mObj);
 //    setGreyMarker(options.getGreyMarker());
 //    setGreyMarker(markerManager.)
-    AirMapTags mAirMapTags = (AirMapTags) marker.getTag();
-    if(mAirMapTags!=null) {
-      setGreyMarker(mAirMapTags.getGreyMarketer());
-    }
-    System.out.println("log::::AirMapTags"+mAirMapTags);
-    System.out.println("log::::AirMapTags"+mAirMapTags.getGreyMarketer());
+//    AirMapTags mAirMapTags = (AirMapTags) marker.getTag();
+//    if(mAirMapTags!=null) {
+//      setGreyMarker(mAirMapTags.getGreyMarketer());
+//    }
+//    System.out.println("log::::AirMapTags"+mAirMapTags);
+//    System.out.println("log::::AirMapTags"+mAirMapTags.getGreyMarketer());
     setFlat(options.isFlat());
     setDraggable(options.isDraggable());
     setZIndex(Math.round(options.getZIndex()));
@@ -218,6 +218,7 @@ public class AirMapMarker extends AirMapFeature {
     update(false);
   }
   public void setGreyMarker(boolean greyMarker){
+//     System.out.println("log:::::setGreyMarker: "+greyMarker);
     this.greyMarker=greyMarker;
     if(marker != null){
 //      marker.setGreyMarker(greyMarker);
@@ -225,6 +226,8 @@ public class AirMapMarker extends AirMapFeature {
     update(false);
   }
   public boolean getGreyMarker(){
+
+//     System.out.println("log:::::getGreyMarker(): "+this.greyMarker);
     return this.greyMarker;
   }
   public void setFlat(boolean flat) {
@@ -400,7 +403,6 @@ public class AirMapMarker extends AirMapFeature {
           .build();
       logoHolder.setController(controller);
     } else {
-      System.out.println("log:::iconBitmapDescriptor:"+uri);
       iconBitmapDescriptor = getBitmapDescriptorByName(uri);
       if (iconBitmapDescriptor != null) {
           int drawableId = getDrawableResourceByName(uri);
@@ -495,7 +497,6 @@ public class AirMapMarker extends AirMapFeature {
     if (hasCustomMarkerView) {
       // creating a bitmap from an arbitrary view
       if (iconBitmapDescriptor != null) {
-        System.out.println("log:::::iconBitmapDescriptor != nul");
         Bitmap viewBitmap = createDrawable();
 //        int width = Math.max(iconBitmap.getWidth(), viewBitmap.getWidth());
         int width = 32;
@@ -507,11 +508,9 @@ public class AirMapMarker extends AirMapFeature {
         canvas.drawBitmap(viewBitmap, 0, 0, null);
         return BitmapDescriptorFactory.fromBitmap(combinedBitmap);
       } else {
-        System.out.println("log:::::BitmapDescriptorFactory.fromBitmap(createDrawable());");
         return BitmapDescriptorFactory.fromBitmap(createDrawable());
       }
     } else if (iconBitmapDescriptor != null) {
-      System.out.println("log:::::iconBitmapDescriptoriconBitmapDescriptoriconBitmapDescriptor");
       // use local image as a marker
 
       return iconBitmapDescriptor;
@@ -577,7 +576,6 @@ public class AirMapMarker extends AirMapFeature {
 
     // Do not create the doublebuffer-bitmap each time. reuse it to save memory.
     Bitmap bitmap = mLastBitmapCreated;
-    System.out.println("log::::::bitmap"+bitmap);
     if (bitmap == null ||
             bitmap.isRecycled() ||
             bitmap.getWidth() != width ||

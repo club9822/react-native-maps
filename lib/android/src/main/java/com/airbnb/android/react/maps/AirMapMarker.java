@@ -388,11 +388,14 @@ public class AirMapMarker extends AirMapFeature {
       update(true);
     } else if (uri.startsWith("http://") || uri.startsWith("https://") ||
         uri.startsWith("file://") || uri.startsWith("asset://") || uri.startsWith("data:")) {
-      System.out.println("log:::ImageRequest:"+uri);
-      ImageRequest imageRequest = ImageRequestBuilder
-          .newBuilderWithSource(Uri.parse(uri))
-          .setResizeOptions(new ResizeOptions(86, 86))
-          .build();
+//       System.out.println("log:::ImageRequest:"+uri);
+//       ImageRequest imageRequest = ImageRequestBuilder
+//           .newBuilderWithSource(Uri.parse(uri))
+//           .setResizeOptions(new ResizeOptions(86, 86))
+//           .build();
+       ImageRequest imageRequest = ImageRequestBuilder
+                 .newBuilderWithSource(Uri.parse(uri))
+                 .build();
 
       ImagePipeline imagePipeline = Fresco.getImagePipeline();
       dataSource = imagePipeline.fetchDecodedImage(imageRequest, this);

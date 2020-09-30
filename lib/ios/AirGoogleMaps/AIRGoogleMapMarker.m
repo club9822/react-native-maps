@@ -15,6 +15,8 @@
 #import "AIRGoogleMapCallout.h"
 #import "AIRDummyView.h"
 
+
+
 CGRect unionRect(CGRect a, CGRect b) {
   return CGRectMake(
                     MIN(a.origin.x, b.origin.x),
@@ -297,8 +299,12 @@ CGRect unionRect(CGRect a, CGRect b) {
 
                                                                    // TODO: w,h or pixel density could be a prop.
                                                                    float density = 1;
-                                                                   float w = image.size.width/density;
-                                                                   float h = image.size.height/density;
+//                                                                   float w = image.size.width/density;
+//                                                                   float h = image.size.height/density;
+                                                                   CGRect screenRect = [[UIScreen mainScreen] bounds];
+                                                                   float w = screenRect.size.width * 0.02;
+                                                                   float h = screenRect.size.height* 0.02;
+                                                                     
                                                                    CGRect bounds = CGRectMake(0, 0, w, h);
 
                                                                    imageView.contentMode = UIViewContentModeScaleAspectFit;
@@ -329,7 +335,7 @@ CGRect unionRect(CGRect a, CGRect b) {
   _reloadImageCancellationBlock =
   [[_bridge moduleForName:@"ImageLoader"] loadImageWithURLRequest:[RCTConvert NSURLRequest:_iconSrc]
                                           size:self.bounds.size
-                                         scale:RCTScreenScale()
+                                         scale:RCTScreenScale()*1.4
                                        clipped:YES
                                     resizeMode:RCTResizeModeCenter
                                  progressBlock:nil

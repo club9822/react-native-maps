@@ -1,652 +1,370 @@
 package com.airbnb.android.react.maps;
 
-import android.animation.ObjectAnimator;
-import android.animation.TypeEvaluator;
-import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.drawable.Animatable;
-import android.graphics.drawable.Drawable;
-import android.net.Uri;
-import android.util.Property;
 import android.view.View;
-import android.widget.LinearLayout;
 
-import com.facebook.common.references.CloseableReference;
-import com.facebook.datasource.DataSource;
-import com.facebook.drawee.backends.pipeline.Fresco;
-import com.facebook.drawee.controller.BaseControllerListener;
-import com.facebook.drawee.controller.ControllerListener;
-import com.facebook.drawee.drawable.ScalingUtils;
-import com.facebook.drawee.generic.GenericDraweeHierarchy;
-import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
-import com.facebook.drawee.interfaces.DraweeController;
-import com.facebook.drawee.view.DraweeHolder;
-import com.facebook.imagepipeline.common.ResizeOptions;
-import com.facebook.imagepipeline.core.ImagePipeline;
-import com.facebook.imagepipeline.image.CloseableImage;
-import com.facebook.imagepipeline.image.CloseableStaticBitmap;
-import com.facebook.imagepipeline.image.ImageInfo;
-import com.facebook.imagepipeline.request.ImageRequest;
-import com.facebook.imagepipeline.request.ImageRequestBuilder;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.LatLng;
+import com.facebook.react.common.MapBuilder;
+import com.facebook.react.uimanager.LayoutShadowNode;
+import com.facebook.react.uimanager.ThemedReactContext;
+import com.facebook.react.uimanager.ViewGroupManager;
+import com.facebook.react.uimanager.annotations.ReactProp;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.LatLng;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
-public class AirMapMarker extends AirMapFeature {
+public class AirMapMarkerManager extends ViewGroupManager<AirMapMarker> {
 
-  private int screenWidth= ScreenUtils.getScreenWidth();
+  private static final int SHOW_INFO_WINDOW = 1;
+  private static final int HIDE_INFO_WINDOW = 2;
+  private static final int ANIMATE_MARKER_TO_COORDINATE = 3;
+  private static final int REDRAW = 4;
 
-//  public AirMapTags f = new AirMapTags();
-  private MarkerOptions markerOptions;
-  private Marker marker;
-  private int width =(int) (screenWidth*0.1);
-  private int height =width;
-//  private int width = 42;
-//  private int height = 42;
-  private String identifier;
+  public static class AirMapMarkerSharedIcon {
+    private BitmapDescriptor iconBitmapDescriptor;
+    private Bitmap bitmap;
+    private Map<AirMapMarker, Boolean> markers;
+    private boolean loadImageStarted;
 
-  private LatLng position;
-  private String title;
-  private String snippet;
-
-  private boolean anchorIsSet;
-  private float anchorX;
-  private float anchorY;
-
-  private AirMapCallout calloutView;
-  private View wrappedCalloutView;
-  private final Context context;
-
-  private float markerHue = 0.0f; // should be between 0 and 360
-//  private float markerHue = 0.0f; // should be between 0 and 360
-  private BitmapDescriptor iconBitmapDescriptor;
-  private Bitmap iconBitmap;
-
-  private float rotation = 0.0f;
-  private boolean flat = false;
-  private boolean draggable = false;
-  private int zIndex = 0;
-  private float opacity = 1.0f;
-
-
-  private float calloutAnchorX;
-  private float calloutAnchorY;
-  private boolean calloutAnchorIsSet;
-
-  private boolean tracksViewChanges = true;
-  private boolean tracksViewChangesActive = false;
-  private boolean hasViewChanges = true;
-
-  private boolean hasCustomMarkerView = false;
-  private final AirMapMarkerManager markerManager;
-  private String imageUri;
-  private final DraweeHolder<?> logoHolder;
-  private DataSource<CloseableReference<CloseableImage>> dataSource;
-  private final ControllerListener<ImageInfo> mLogoControllerListener =
-      new BaseControllerListener<ImageInfo>() {
-        @Override
-        public void onFinalImageSet(
-            String id,
-            @Nullable final ImageInfo imageInfo,
-            @Nullable Animatable animatable) {
-          CloseableReference<CloseableImage> imageReference = null;
-          try {
-            imageReference = dataSource.getResult();
-            if (imageReference != null) {
-              CloseableImage image = imageReference.get();
-              if (image != null && image instanceof CloseableStaticBitmap) {
-                CloseableStaticBitmap closeableStaticBitmap = (CloseableStaticBitmap) image;
-                Bitmap bitmap = closeableStaticBitmap.getUnderlyingBitmap();
-
-                if (bitmap != null) {
-//                  bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
-//                  bitmap.setWidth(width);
-//                  bitmap.setHeight(height);
-                  bitmap = Bitmap.createScaledBitmap(bitmap, width, height, true);
-                  iconBitmap = bitmap;
-                  iconBitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap);
-                }
-              }
-            }
-          } finally {
-            dataSource.close();
-            if (imageReference != null) {
-              CloseableReference.closeSafely(imageReference);
-            }
-          }
-          if (AirMapMarker.this.markerManager != null && AirMapMarker.this.imageUri != null) {
-            AirMapMarker.this.markerManager.getSharedIcon(AirMapMarker.this.imageUri)
-                .updateIcon(iconBitmapDescriptor, iconBitmap);
-          }
-          update(true);
-        }
-      };
-//  public AirMapTags getAirMapTags(){
-//    return this.mAirMapTags;
-//  }
-  public AirMapMarker(Context context, AirMapMarkerManager markerManager) {
-    super(context);
-    this.context = context;
-    this.markerManager = markerManager;
-    logoHolder = DraweeHolder.create(createDraweeHierarchy(), context);
-//    logoHolder.
-    logoHolder.onAttach();
-  }
-
-  public AirMapMarker(Context context, MarkerOptions options, AirMapMarkerManager markerManager) {
-    super(context);
-    this.context = context;
-    this.markerManager = markerManager;
-    logoHolder = DraweeHolder.create(createDraweeHierarchy(), context);
-    logoHolder.onAttach();
-    position = options.getPosition();
-    setAnchor(options.getAnchorU(), options.getAnchorV());
-    setCalloutAnchor(options.getInfoWindowAnchorU(), options.getInfoWindowAnchorV());
-    setTitle(options.getTitle());
-    setSnippet(options.getSnippet());
-    setRotation(options.getRotation());
-    setFlat(options.isFlat());
-    setDraggable(options.isDraggable());
-    setZIndex(Math.round(options.getZIndex()));
-    setAlpha(options.getAlpha());
-    setMarkerHue(this.markerHue);
-    iconBitmapDescriptor = options.getIcon();
-  }
-
-  private GenericDraweeHierarchy createDraweeHierarchy() {
-    return new GenericDraweeHierarchyBuilder(getResources())
-        .setActualImageScaleType(ScalingUtils.ScaleType.FIT_CENTER)
-        .setFadeDuration(0)
-        .build();
-  }
-
-  public void setCoordinate(ReadableMap coordinate) {
-    position = new LatLng(coordinate.getDouble("latitude"), coordinate.getDouble("longitude"));
-    if (marker != null) {
-      marker.setPosition(position);
+    public AirMapMarkerSharedIcon(){
+      this.markers = new WeakHashMap<>();
+      this.loadImageStarted = false;
     }
-    update(false);
-  }
 
-  public void setIdentifier(String identifier) {
-    this.identifier = identifier;
-    update(false);
-  }
-
-  public String getIdentifier() {
-    return this.identifier;
-  }
-
-  public void setTitle(String title) {
-    this.title = title;
-    if (marker != null) {
-      marker.setTitle(title);
-    }
-    update(false);
-  }
-
-  public void setSnippet(String snippet) {
-    this.snippet = snippet;
-    if (marker != null) {
-      marker.setSnippet(snippet);
-    }
-    update(false);
-  }
-
-  public void setRotation(float rotation) {
-    this.rotation = rotation;
-    if (marker != null) {
-      marker.setRotation(rotation);
-    }
-    update(false);
-  }
-  public void setFlat(boolean flat) {
-    this.flat = flat;
-    if (marker != null) {
-      marker.setFlat(flat);
-    }
-    update(false);
-  }
-
-  public void setDraggable(boolean draggable) {
-    this.draggable = draggable;
-    if (marker != null) {
-      marker.setDraggable(draggable);
-    }
-    update(false);
-  }
-
-  public void setZIndex(int zIndex) {
-    this.zIndex = zIndex;
-    if (marker != null) {
-      marker.setZIndex(zIndex);
-    }
-    update(false);
-  }
-
-  public void setOpacity(float opacity) {
-    this.opacity = opacity;
-    if (marker != null) {
-      marker.setAlpha(opacity);
-    }
-    update(false);
-  }
-
-  public void setMarkerHue(float markerHue) {
-    this.markerHue = markerHue;
-    update(false);
-  }
-
-  public void setAnchor(double x, double y) {
-    anchorIsSet = true;
-    anchorX = (float) x;
-    anchorY = (float) y;
-    if (marker != null) {
-      marker.setAnchor(anchorX, anchorY);
-    }
-    update(false);
-  }
-
-  public void setCalloutAnchor(double x, double y) {
-    calloutAnchorIsSet = true;
-    calloutAnchorX = (float) x;
-    calloutAnchorY = (float) y;
-    if (marker != null) {
-      marker.setInfoWindowAnchor(calloutAnchorX, calloutAnchorY);
-    }
-    update(false);
-  }
-
-  public void setTracksViewChanges(boolean tracksViewChanges) {
-    this.tracksViewChanges = tracksViewChanges;
-    updateTracksViewChanges();
-  }
-
-  private void updateTracksViewChanges() {
-    boolean shouldTrack = tracksViewChanges && hasCustomMarkerView && marker != null;
-    if (shouldTrack == tracksViewChangesActive) return;
-    tracksViewChangesActive = shouldTrack;
-
-    if (shouldTrack) {
-      ViewChangesTracker.getInstance().addMarker(this);
-    } else {
-      ViewChangesTracker.getInstance().removeMarker(this);
-
-      // Let it render one more time to avoid race conditions.
-      // i.e. Image onLoad ->
-      //      ViewChangesTracker may not get a chance to render ->
-      //      setState({ tracksViewChanges: false }) ->
-      //      image loaded but not rendered.
-      updateMarkerIcon();
-    }
-  }
-
-  public boolean updateCustomForTracking() {
-    if (!tracksViewChangesActive)
+    /**
+     * check whether the load image process started.
+     * caller AirMapMarker will only need to load it when this returns true.
+     *
+     * @return true if it is not started, false otherwise.
+     */
+    public synchronized boolean shouldLoadImage(){
+      if (!this.loadImageStarted) {
+        this.loadImageStarted = true;
+        return true;
+      }
       return false;
-
-    updateMarkerIcon();
-
-    return true;
-  }
-
-  public void updateMarkerIcon() {
-    if (marker == null) return;
-
-    if (!hasCustomMarkerView) {
-      // No more updates for this, as it's a simple icon
-      hasViewChanges = false;
     }
-    if (marker != null) {
-      marker.setIcon(getIcon());
-    }
-  }
 
-  public LatLng interpolate(float fraction, LatLng a, LatLng b) {
-    double lat = (b.latitude - a.latitude) * fraction + a.latitude;
-    double lng = (b.longitude - a.longitude) * fraction + a.longitude;
-    return new LatLng(lat, lng);
-  }
-
-  public void animateToCoodinate(LatLng finalPosition, Integer duration) {
-    TypeEvaluator<LatLng> typeEvaluator = new TypeEvaluator<LatLng>() {
-      @Override
-      public LatLng evaluate(float fraction, LatLng startValue, LatLng endValue) {
-        return interpolate(fraction, startValue, endValue);
-      }
-    };
-    Property<Marker, LatLng> property = Property.of(Marker.class, LatLng.class, "position");
-    ObjectAnimator animator = ObjectAnimator.ofObject(
-      marker,
-      property,
-      typeEvaluator,
-      finalPosition);
-    animator.setDuration(duration);
-    animator.start();
-  }
-
-  public void setImage(String uri) {
-    hasViewChanges = true;
-
-    boolean shouldLoadImage = true;
-
-    if (this.markerManager != null) {
-      // remove marker from previous shared icon if needed, to avoid future updates from it.
-      // remove the shared icon completely if no markers on it as well.
-      // this is to avoid memory leak due to orphan bitmaps.
-      //
-      // However in case where client want to update all markers from icon A to icon B
-      // and after some time to update back from icon B to icon A
-      // it may be better to keep it though. We assume that is rare.
-      if (this.imageUri != null) {
-        this.markerManager.getSharedIcon(this.imageUri).removeMarker(this);
-        this.markerManager.removeSharedIconIfEmpty(this.imageUri);
-      }
-      if (uri != null) {
-        // listening for marker bitmap descriptor update, as well as check whether to load the image.
-        AirMapMarkerManager.AirMapMarkerSharedIcon sharedIcon = this.markerManager.getSharedIcon(uri);
-        sharedIcon.addMarker(this);
-        shouldLoadImage = sharedIcon.shouldLoadImage();
+    /**
+     * subscribe icon update for given marker.
+     *
+     * The marker is wrapped in weakReference, so no need to remove it explicitly.
+     *
+     * @param marker
+     */
+    public synchronized void addMarker(AirMapMarker marker) {
+      this.markers.put(marker, true);
+      if (this.iconBitmapDescriptor != null) {
+        marker.setIconBitmapDescriptor(this.iconBitmapDescriptor, this.bitmap);
       }
     }
 
-    this.imageUri = uri;
-    if (!shouldLoadImage) {return;}
+    /**
+     * Remove marker from this shared icon.
+     *
+     * Marker will only need to call it when the marker receives a different marker image uri.
+     *
+     * @param marker
+     */
+    public synchronized void removeMarker(AirMapMarker marker) {
+      this.markers.remove(marker);
+    }
 
-    if (uri == null) {
-      iconBitmapDescriptor = null;
-      update(true);
-    } else if (uri.startsWith("http://") || uri.startsWith("https://") ||
-        uri.startsWith("file://") || uri.startsWith("asset://") || uri.startsWith("data:")) {
-       ImageRequest imageRequest = ImageRequestBuilder
-           .newBuilderWithSource(Uri.parse(uri))
-           .setResizeOptions(new ResizeOptions(width, height))
-           .build();
-//       ImageRequest imageRequest = ImageRequestBuilder
-//                 .newBuilderWithSource(Uri.parse(uri))
-//                 .build();
+    /**
+     * check if there is markers still listening on this icon.
+     * when there are not markers listen on it, we can remove it.
+     *
+     * @return true if there is, false otherwise
+     */
+    public synchronized boolean hasMarker(){
+      return this.markers.isEmpty();
+    }
 
-      ImagePipeline imagePipeline = Fresco.getImagePipeline();
-      dataSource = imagePipeline.fetchDecodedImage(imageRequest, this);
-      DraweeController controller = Fresco.newDraweeControllerBuilder()
-          .setImageRequest(imageRequest)
-          .setControllerListener(mLogoControllerListener)
-          .setOldController(logoHolder.getController())
-          .build();
-      logoHolder.setController(controller);
-    } else {
-      iconBitmapDescriptor = getBitmapDescriptorByName(uri);
-      if (iconBitmapDescriptor != null) {
-          int drawableId = getDrawableResourceByName(uri);
-          iconBitmap = BitmapFactory.decodeResource(getResources(), drawableId);
-          if (iconBitmap == null) { // VectorDrawable or similar
-              Drawable drawable = getResources().getDrawable(drawableId);
-              iconBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-              drawable.setBounds(0, 0, width, height);
-//              mFastGreyScalePostprocessor.process(iconBitmap);
-              Canvas canvas = new Canvas(iconBitmap);
-              drawable.draw(canvas);
-          }
+    /**
+     * Update the bitmap descriptor and bitmap for the image uri.
+     * And notify all subscribers about the update.
+     *
+     * @param bitmapDescriptor
+     * @param bitmap
+     */
+    public synchronized void updateIcon(BitmapDescriptor bitmapDescriptor, Bitmap bitmap) {
+
+      this.iconBitmapDescriptor = bitmapDescriptor;
+      this.bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+
+      if (this.markers.isEmpty()) {
+        return;
       }
-      if (this.markerManager != null && uri != null) {
-        this.markerManager.getSharedIcon(uri).updateIcon(iconBitmapDescriptor, iconBitmap);
+
+      for (Map.Entry<AirMapMarker, Boolean> markerEntry: markers.entrySet()) {
+        if (markerEntry.getKey() != null) {
+          markerEntry.getKey().setIconBitmapDescriptor(bitmapDescriptor, bitmap);
+        }
       }
-      update(true);
     }
   }
 
-  public void setIconBitmapDescriptor(BitmapDescriptor bitmapDescriptor, Bitmap bitmap) {
-//    mFastGreyScalePostprocessor.process(bitmap);
-    this.iconBitmapDescriptor = bitmapDescriptor;
-    this.iconBitmap = bitmap;
-    this.hasViewChanges = true;
-    this.update(true);
-  }
+  private Map<String, AirMapMarkerSharedIcon> sharedIcons = new ConcurrentHashMap<>();
 
-  public void setIconBitmap(Bitmap bitmap) {
-    this.iconBitmap = bitmap;
-  }
-
-  public MarkerOptions getMarkerOptions() {
-    if (markerOptions == null) {
-      markerOptions = new MarkerOptions();
+  /**
+   * get the shared icon object, if not existed, create a new one and store it.
+   *
+   * @param uri
+   * @return the icon object for the given uri.
+   */
+  public AirMapMarkerSharedIcon getSharedIcon(String uri) {
+    AirMapMarkerSharedIcon icon = this.sharedIcons.get(uri);
+    if (icon == null) {
+      synchronized (this) {
+        if((icon = this.sharedIcons.get(uri)) == null) {
+          icon = new AirMapMarkerSharedIcon();
+          this.sharedIcons.put(uri, icon);
+        }
+      }
     }
+    return icon;
+  }
 
-    fillMarkerOptions(markerOptions);
-    return markerOptions;
+  /**
+   * Remove the share icon object from our sharedIcons map when no markers are listening for it.
+   *
+   * @param uri
+   */
+  public void removeSharedIconIfEmpty(String uri) {
+    AirMapMarkerSharedIcon icon = this.sharedIcons.get(uri);
+    if (icon == null) {return;}
+    if (!icon.hasMarker()) {
+      synchronized (this) {
+        if((icon = this.sharedIcons.get(uri)) != null && !icon.hasMarker()) {
+          this.sharedIcons.remove(uri);
+        }
+      }
+    }
+  }
+
+  public AirMapMarkerManager() {
   }
 
   @Override
-  public void addView(View child, int index) {
-    super.addView(child, index);
-    // if children are added, it means we are rendering a custom marker
-    if (!(child instanceof AirMapCallout)) {
-      hasCustomMarkerView = true;
-      updateTracksViewChanges();
-    }
-    update(true);
+  public String getName() {
+    return "AIRMapMarker";
   }
 
   @Override
-  public void requestLayout() {
-    super.requestLayout();
+  public AirMapMarker createViewInstance(ThemedReactContext context) {
+    return new AirMapMarker(context, this);
+  }
 
-    if (getChildCount() == 0) {
-      if (hasCustomMarkerView) {
-        hasCustomMarkerView = false;
-        clearDrawableCache();
-        updateTracksViewChanges();
-        update(true);
-      }
+  @ReactProp(name = "coordinate")
+  public void setCoordinate(AirMapMarker view, ReadableMap map) {
+    view.setCoordinate(map);
+  }
 
+  @ReactProp(name = "title")
+  public void setTitle(AirMapMarker view, String title) {
+    view.setTitle(title);
+  }
+
+  @ReactProp(name = "identifier")
+  public void setIdentifier(AirMapMarker view, String identifier) {
+    view.setIdentifier(identifier);
+  }
+
+  @ReactProp(name = "description")
+  public void setDescription(AirMapMarker view, String description) {
+    view.setSnippet(description);
+  }
+
+  // NOTE(lmr):
+  // android uses normalized coordinate systems for this, and is provided through the
+  // `anchor` property  and `calloutAnchor` instead.  Perhaps some work could be done
+  // to normalize iOS and android to use just one of the systems.
+//    @ReactProp(name = "centerOffset")
+//    public void setCenterOffset(AirMapMarker view, ReadableMap map) {
+//
+//    }
+//
+//    @ReactProp(name = "calloutOffset")
+//    public void setCalloutOffset(AirMapMarker view, ReadableMap map) {
+//
+//    }
+
+  @ReactProp(name = "anchor")
+  public void setAnchor(AirMapMarker view, ReadableMap map) {
+    // should default to (0.5, 1) (bottom middle)
+    double x = map != null && map.hasKey("x") ? map.getDouble("x") : 0.5;
+    double y = map != null && map.hasKey("y") ? map.getDouble("y") : 1.0;
+    view.setAnchor(x, y);
+  }
+
+  @ReactProp(name = "calloutAnchor")
+  public void setCalloutAnchor(AirMapMarker view, ReadableMap map) {
+    // should default to (0.5, 0) (top middle)
+    double x = map != null && map.hasKey("x") ? map.getDouble("x") : 0.5;
+    double y = map != null && map.hasKey("y") ? map.getDouble("y") : 0.0;
+    view.setCalloutAnchor(x, y);
+  }
+
+  @ReactProp(name = "image")
+  public void setImage(AirMapMarker view, @Nullable String source) {
+    view.setImage(source);
+  }
+//    public void setImage(AirMapMarker view, ReadableMap image) {
+//        view.setImage(image);
+//    }
+
+  @ReactProp(name = "icon")
+  public void setIcon(AirMapMarker view, @Nullable String source) {
+    view.setImage(source);
+  }
+
+  @ReactProp(name = "pinColor", defaultInt = Color.RED, customType = "Color")
+  public void setPinColor(AirMapMarker view, int pinColor) {
+    float[] hsv = new float[3];
+    Color.colorToHSV(pinColor, hsv);
+    // NOTE: android only supports a hue
+    view.setMarkerHue(hsv[0]);
+  }
+
+  @ReactProp(name = "rotation", defaultFloat = 0.0f)
+  public void setMarkerRotation(AirMapMarker view, float rotation) {
+    view.setRotation(rotation);
+  }
+
+  @ReactProp(name = "flat", defaultBoolean = false)
+  public void setFlat(AirMapMarker view, boolean flat) {
+    view.setFlat(flat);
+  }
+
+  @ReactProp(name = "draggable", defaultBoolean = false)
+  public void setDraggable(AirMapMarker view, boolean draggable) {
+    view.setDraggable(draggable);
+  }
+
+  @Override
+  @ReactProp(name = "zIndex", defaultFloat = 0.0f)
+  public void setZIndex(AirMapMarker view, float zIndex) {
+    super.setZIndex(view, zIndex);
+    int integerZIndex = Math.round(zIndex);
+    view.setZIndex(integerZIndex);
+  }
+
+  @Override
+  @ReactProp(name = "opacity", defaultFloat = 1.0f)
+  public void setOpacity(AirMapMarker view, float opacity) {
+    super.setOpacity(view, opacity);
+    view.setOpacity(opacity);
+  }
+
+  @ReactProp(name = "tracksViewChanges", defaultBoolean = true)
+  public void setTracksViewChanges(AirMapMarker view, boolean tracksViewChanges) {
+    view.setTracksViewChanges(tracksViewChanges);
+  }
+
+  @Override
+  public void addView(AirMapMarker parent, View child, int index) {
+    // if an <Callout /> component is a child, then it is a callout view, NOT part of the
+    // marker.
+    if (child instanceof AirMapCallout) {
+      parent.setCalloutView((AirMapCallout) child);
+    } else {
+      super.addView(parent, child, index);
+      parent.update(true);
     }
   }
 
   @Override
-  public Object getFeature() {
-    return marker;
+  public void removeViewAt(AirMapMarker parent, int index) {
+    super.removeViewAt(parent, index);
+    parent.update(true);
   }
 
   @Override
-  public void addToMap(GoogleMap map) {
-    marker = map.addMarker(getMarkerOptions());
-    updateTracksViewChanges();
+  @Nullable
+  public Map<String, Integer> getCommandsMap() {
+    return MapBuilder.of(
+        "showCallout", SHOW_INFO_WINDOW,
+        "hideCallout", HIDE_INFO_WINDOW,
+        "animateMarkerToCoordinate", ANIMATE_MARKER_TO_COORDINATE,
+        "redraw", REDRAW
+    );
   }
 
   @Override
-  public void removeFromMap(GoogleMap map) {
-    if (marker == null) {
-      return;
-    }
-    marker.remove();
-    marker = null;
-    updateTracksViewChanges();
-  }
+  public void receiveCommand(AirMapMarker view, int commandId, @Nullable ReadableArray args) {
+    Integer duration;
+    Double lat;
+    Double lng;
+    ReadableMap region;
 
-  private BitmapDescriptor getIcon() {
+    switch (commandId) {
+      case SHOW_INFO_WINDOW:
+        ((Marker) view.getFeature()).showInfoWindow();
+        break;
 
-    if (hasCustomMarkerView) {
-      // creating a bitmap from an arbitrary view
-      if (iconBitmapDescriptor != null) {
-        Bitmap viewBitmap = createDrawable();
-//        int width = Math.max(iconBitmap.getWidth(), viewBitmap.getWidth());
-//        int width = 32;
-////        int height = Math.max(iconBitmap.getHeight(), viewBitmap.getHeight());
-//        int height = 32;
-        Bitmap combinedBitmap = Bitmap.createBitmap(width, height, iconBitmap.getConfig());
-        Canvas canvas = new Canvas(combinedBitmap);
-        canvas.drawBitmap(iconBitmap, 0, 0, null);
-        canvas.drawBitmap(viewBitmap, 0, 0, null);
-        return BitmapDescriptorFactory.fromBitmap(combinedBitmap);
-      } else {
-        return BitmapDescriptorFactory.fromBitmap(createDrawable());
-      }
-    } else if (iconBitmapDescriptor != null) {
-      // use local image as a marker
+      case HIDE_INFO_WINDOW:
+        ((Marker) view.getFeature()).hideInfoWindow();
+        break;
 
-      return iconBitmapDescriptor;
-    } else {
-      // render the default marker pin
-      return BitmapDescriptorFactory.defaultMarker(this.markerHue);
+      case ANIMATE_MARKER_TO_COORDINATE:
+        region = args.getMap(0);
+        duration = args.getInt(1);
+
+        lng = region.getDouble("longitude");
+        lat = region.getDouble("latitude");
+        view.animateToCoodinate(new LatLng(lat, lng), duration);
+        break;
+
+      case REDRAW:
+        view.updateMarkerIcon();
+        break;
     }
   }
 
-  private MarkerOptions fillMarkerOptions(MarkerOptions options) {
-    options.position(position);
-    if (anchorIsSet) options.anchor(anchorX, anchorY);
-    if (calloutAnchorIsSet) options.infoWindowAnchor(calloutAnchorX, calloutAnchorY);
-    options.title(title);
-    options.snippet(snippet);
-    options.rotation(rotation);
-    options.flat(flat);
-    options.draggable(draggable);
-    options.zIndex(zIndex);
-    options.alpha(opacity);
-    options.icon(getIcon());
-    return options;
-  }
+  @Override
+  @Nullable
+  public Map getExportedCustomDirectEventTypeConstants() {
+    Map<String, Map<String, String>> map = MapBuilder.of(
+        "onPress", MapBuilder.of("registrationName", "onPress"),
+        "onCalloutPress", MapBuilder.of("registrationName", "onCalloutPress"),
+        "onDragStart", MapBuilder.of("registrationName", "onDragStart"),
+        "onDrag", MapBuilder.of("registrationName", "onDrag"),
+        "onDragEnd", MapBuilder.of("registrationName", "onDragEnd")
+    );
 
-  public void update(boolean updateIcon) {
-    if (marker == null) {
-      return;
-    }
-
-    if (updateIcon)
-      updateMarkerIcon();
-
-    if (anchorIsSet) {
-      marker.setAnchor(anchorX, anchorY);
-    } else {
-      marker.setAnchor(0.5f, 1.0f);
-    }
-
-    if (calloutAnchorIsSet) {
-      marker.setInfoWindowAnchor(calloutAnchorX, calloutAnchorY);
-    } else {
-      marker.setInfoWindowAnchor(0.5f, 0);
-    }
-  }
-
-  public void update(int width, int height) {
-//    this.width = width;
-//    this.height = height;
-    update(true);
-  }
-
-  private Bitmap mLastBitmapCreated = null;
-
-  private void clearDrawableCache() {
-    mLastBitmapCreated = null;
-  }
-
-  private Bitmap createDrawable() {
-//    int width = this.width <= 0 ? 100 : this.width;
-//    int height = this.height <= 0 ? 100 : this.height;
-    this.buildDrawingCache();
-
-    // Do not create the doublebuffer-bitmap each time. reuse it to save memory.
-    Bitmap bitmap = mLastBitmapCreated;
-    if (bitmap == null ||
-            bitmap.isRecycled() ||
-            bitmap.getWidth() != width ||
-            bitmap.getHeight() != height) {
-
-      bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-      mLastBitmapCreated = bitmap;
-    } else {
-      bitmap.eraseColor(Color.TRANSPARENT);
-    }
-
-    Canvas canvas = new Canvas(bitmap);
-    this.draw(canvas);
-
-    return bitmap;
-  }
-
-  public void setCalloutView(AirMapCallout view) {
-    this.calloutView = view;
-  }
-
-  public AirMapCallout getCalloutView() {
-    return this.calloutView;
-  }
-
-  public View getCallout() {
-    if (this.calloutView == null) return null;
-
-    if (this.wrappedCalloutView == null) {
-      this.wrapCalloutView();
-    }
-
-    if (this.calloutView.getTooltip()) {
-      return this.wrappedCalloutView;
-    } else {
-      return null;
-    }
-  }
-
-  public View getInfoContents() {
-    if (this.calloutView == null) return null;
-
-    if (this.wrappedCalloutView == null) {
-      this.wrapCalloutView();
-    }
-
-    if (this.calloutView.getTooltip()) {
-      return null;
-    } else {
-      return this.wrappedCalloutView;
-    }
-  }
-
-  private void wrapCalloutView() {
-    // some hackery is needed to get the arbitrary infowindow view to render centered, and
-    // with only the width/height that it needs.
-    if (this.calloutView == null || this.calloutView.getChildCount() == 0) {
-      return;
-    }
-
-    LinearLayout LL = new LinearLayout(context);
-    LL.setOrientation(LinearLayout.VERTICAL);
-    LL.setLayoutParams(new LinearLayout.LayoutParams(
-        this.calloutView.width,
-        this.calloutView.height,
-        0f
+    map.putAll(MapBuilder.of(
+        "onDragStart", MapBuilder.of("registrationName", "onDragStart"),
+        "onDrag", MapBuilder.of("registrationName", "onDrag"),
+        "onDragEnd", MapBuilder.of("registrationName", "onDragEnd")
     ));
 
-
-    LinearLayout LL2 = new LinearLayout(context);
-    LL2.setOrientation(LinearLayout.HORIZONTAL);
-    LL2.setLayoutParams(new LinearLayout.LayoutParams(
-        this.calloutView.width,
-        this.calloutView.height,
-        0f
-    ));
-
-    LL.addView(LL2);
-    LL2.addView(this.calloutView);
-
-    this.wrappedCalloutView = LL;
+    return map;
   }
 
-  private int getDrawableResourceByName(String name) {
-    return getResources().getIdentifier(
-        name,
-        "drawable",
-        getContext().getPackageName());
+  @Override
+  public LayoutShadowNode createShadowNodeInstance() {
+    // we use a custom shadow node that emits the width/height of the view
+    // after layout with the updateExtraData method. Without this, we can't generate
+    // a bitmap of the appropriate width/height of the rendered view.
+    return new SizeReportingShadowNode();
   }
 
-  private BitmapDescriptor getBitmapDescriptorByName(String name) {
-    return BitmapDescriptorFactory.fromResource(getDrawableResourceByName(name));
+  @Override
+  public void updateExtraData(AirMapMarker view, Object extraData) {
+    // This method is called from the shadow node with the width/height of the rendered
+    // marker view.
+    HashMap<String, Float> data = (HashMap<String, Float>) extraData;
+    float width = data.get("width");
+    float height = data.get("height");
+    view.update((int) width, (int) height);
   }
-
 }
